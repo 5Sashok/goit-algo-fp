@@ -1,0 +1,166 @@
+import uuid
+from collections import deque
+import networkx as nx
+import matplotlib.pyplot as plt
+
+# ------------------ Базова структура вузла і рендер із Завдання 4 ------------------
+class Node:
+    def __init__(self, key, color="#87CEEB"):
+        self.left = None
+        self.right = None
+        self.val = key
+        self.color = color
+        self.id = str(uuid.uuid4())
+
+def add_edges(graph, node, pos, x=0, y=0, layer=1):
+    if node is not None:
+        graph.add_node(node.id, color=node.color, label=node.val)
+        if node.left:
+            graph.add_edge(node.id, node.left.id)
+            l = x - 1 / 2 ** layer
+            pos[node.left.id] = (l, y - 1)
+            add_edges(graph, node.left, pos, x=l, y=y - 1, layer=layer + 1)
+        if node.right:
+            graph.add_edge(node.id, node.right.id)
+            r = x + 1 / 2 ** layer
+            pos[node.right.id] = (r, y - 1)
+            add_edges(graph, node.right, pos, x=r, y=y - 1, layer=layer + 1)
+    return graph
+
+def snapshot(tree_root):
+    """Повертає (Graph, pos) для поточного стану кольорів."""
+    g = nx.DiGraph()
+    pos = {tree_root.id: (0, 0)}
+    add_edges(g, tree_root, pos)
+    return g, pos
+
+def draw_once(ax, g, pos, title=""):
+    ax.clear()
+    colors = [data["color"] for _, data in g.nodes(data=True)]
+    labels = {n: data["label"] for n, data in g.nodes(data=True)}
+    nx.draw(g, pos=pos, labels=labels, arrows=False,
+            node_size=2400, node_color=colors, ax=ax)
+    ax.set_title(title)
+    ax.axis("off")
+    plt.pause(0.6)  # пауза, щоб побачити крок
+
+# ------------------ Сервіс: градієнт кольорів у hex ------------------
+def hex_to_rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+def rgb_to_hex(rgb):
+    return "#{:02X}{:02X}{:02X}".format(*rgb)
+
+def make_gradient(n, start="#1A2A3A", end="#A9D5FF"):
+    """n кольорів від темного до світлого."""
+    if n <= 0:
+        return []
+    s = hex_to_rgb(start)
+    e = hex_to_rgb(end)
+    grad = []
+    for i in range(n):
+        t = i / max(1, n - 1)
+        rgb = tuple(int(round(s[c] + (e[c] - s[c]) * t)) for c in range(3))
+        grad.append(rgb_to_hex(rgb))
+    return grad
+
+# ------------------ Збір усіх вузлів у списку рівневим порядком ------------------
+def collect_nodes(root):
+    order = []
+    q = deque([root]) if root else deque()
+    seen = set()
+    while q:
+        u = q.popleft()
+        if u and u.id not in seen:
+            seen.add(u.id)
+            order.append(u)
+            q.append(u.left)
+            q.append(u.right)
+    return order
+
+# ------------------ BFS (черга) і DFS (стек) без рекурсії ------------------
+def bfs_visual(root, dark="#14253A", light="#8FD3FF"):
+    if not root:
+        return
+    # Заготовимо всі вузли та градієнт під їх кількість
+    nodes = collect_nodes(root)
+    palette = make_gradient(len(nodes), start=dark, end=light)
+
+    # Початковий знімок
+    fig, ax = plt.subplots(figsize=(9, 5))
+    g, pos = snapshot(root)
+    draw_once(ax, g, pos, title="BFS: старт")
+
+    q = deque([root])
+    visited = set()
+    step = 0
+    while q:
+        u = q.popleft()
+        if u is None or u.id in visited:
+            continue
+        # фарбуємо у колір за порядком
+        u.color = palette[step]
+        step += 1
+        visited.add(u.id)
+
+        # малюємо крок
+        g, pos = snapshot(root)
+        draw_once(ax, g, pos, title=f"BFS: відвідано {u.val}")
+
+        # додаємо дітей
+        q.append(u.left)
+        q.append(u.right)
+
+    plt.show()
+
+def dfs_visual(root, dark="#1B2330", light="#B0E1FF"):
+    if not root:
+        return
+    nodes = collect_nodes(root)
+    palette = make_gradient(len(nodes), start=dark, end=light)
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    g, pos = snapshot(root)
+    draw_once(ax, g, pos, title="DFS (стек): старт")
+
+    stack = [root]
+    visited = set()
+    step = 0
+    while stack:
+        u = stack.pop()  # стек: LIFO
+        if u is None or u.id in visited:
+            continue
+
+        u.color = palette[step]
+        step += 1
+        visited.add(u.id)
+
+        g, pos = snapshot(root)
+        draw_once(ax, g, pos, title=f"DFS: відвідано {u.val}")
+
+        # Важливо: щоб іти спочатку вліво, спершу покладіть правого
+        if u.right:
+            stack.append(u.right)
+        if u.left:
+            stack.append(u.left)
+
+    plt.show()
+
+# ------------------ Демонстрація ------------------
+if __name__ == "__main__":
+    # Будуємо дерево як у прикладі
+    root = Node(0)
+    root.left = Node(4)
+    root.left.left = Node(5)
+    root.left.right = Node(10)
+    root.right = Node(1)
+    root.right.left = Node(3)
+
+    # Візуалізації:
+    bfs_visual(root)   # обхід у ширину (черга)
+
+    # Скинемо кольори перед другим запуском
+    for v in collect_nodes(root):
+        v.color = "#87CEEB"
+    dfs_visual(root)   # обхід у глибину (стек)
