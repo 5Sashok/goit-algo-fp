@@ -1,0 +1,126 @@
+# === 1) Базові класи та рендер (твій код, можна залишити як є) =================
+import uuid
+import heapq
+import networkx as nx
+import matplotlib.pyplot as plt
+
+class Node:
+    def __init__(self, key, color="skyblue"):
+        self.left = None
+        self.right = None
+        self.val = key
+        self.color = color
+        self.id = str(uuid.uuid4())
+
+def add_edges(graph, node, pos, x=0, y=0, layer=1):
+    if node is not None:
+        graph.add_node(node.id, color=node.color, label=node.val)
+        if node.left:
+            graph.add_edge(node.id, node.left.id)
+            l = x - 1 / 2 ** layer
+            pos[node.left.id] = (l, y - 1)
+            add_edges(graph, node.left, pos, x=l, y=y - 1, layer=layer + 1)
+        if node.right:
+            graph.add_edge(node.id, node.right.id)
+            r = x + 1 / 2 ** layer
+            pos[node.right.id] = (r, y - 1)
+            add_edges(graph, node.right, pos, x=r, y=y - 1, layer=layer + 1)
+    return graph
+
+def draw_tree(tree_root):
+    tree = nx.DiGraph()
+    pos = {tree_root.id: (0, 0)}
+    tree = add_edges(tree, tree_root, pos)
+
+    colors = [node[1]['color'] for node in tree.nodes(data=True)]
+    labels = {node[0]: node[1]['label'] for node in tree.nodes(data=True)}
+
+    plt.figure(figsize=(8, 5))
+    nx.draw(tree, pos=pos, labels=labels, arrows=False, node_size=2500, node_color=colors)
+    plt.show()
+
+
+# === 2) Побудова дерева з масиву-кучі =========================================
+def array_to_tree(arr, highlight_violations=False, heap_type='min'):
+    """
+    Перетворює масив (рівневе представлення бінарної купи) на дерево Node.
+    highlight_violations=True підсвічує червоним вузли, що порушують властивість купи.
+    heap_type: 'min' або 'max'
+    """
+    if not arr:
+        return None
+
+    # створюємо вузли
+    nodes = [Node(arr[i]) for i in range(len(arr))]
+
+    # зв'язуємо дітей: для i -> left=2i+1, right=2i+2
+    for i in range(len(arr)):
+        li, ri = 2*i + 1, 2*i + 2
+        if li < len(arr):
+            nodes[i].left = nodes[li]
+        if ri < len(arr):
+            nodes[i].right = nodes[ri]
+
+        if highlight_violations:
+            # перевірка властивості купи
+            if li < len(arr):
+                bad = (heap_type == 'min' and arr[i] > arr[li]) or \
+                      (heap_type == 'max' and arr[i] < arr[li])
+                if bad:
+                    nodes[i].color = nodes[i].color = "#ff6b6b"  # червоний
+                    nodes[li].color = "#ff6b6b"
+            if ri < len(arr):
+                bad = (heap_type == 'min' and arr[i] > arr[ri]) or \
+                      (heap_type == 'max' and arr[i] < arr[ri])
+                if bad:
+                    nodes[i].color = "#ff6b6b"
+                    nodes[ri].color = "#ff6b6b"
+
+    # виділити корінь
+    nodes[0].color = "#87CEEB" if nodes[0].color == "skyblue" else nodes[0].color
+    return nodes[0]
+
+
+# === 3) Зручна обгортка для візуалізації купи =================================
+def visualize_heap(values, heap_type='min', do_heapify=True, highlight_violations=False):
+    """
+    values          — ітерований контейнер чисел
+    heap_type       — 'min' або 'max'
+    do_heapify      — якщо True, спочатку перетворюємо values у коректну купу
+    highlight_violations — якщо False, просто малюємо; якщо True, показує порушення властивості купи
+    """
+    arr = list(values)
+
+    if do_heapify:
+        if heap_type == 'min':
+            heap = arr[:]
+            heapq.heapify(heap)
+            arr = heap
+        elif heap_type == 'max':
+            # перетворення в max-heap через інверсію знаку
+            heap = [-x for x in arr]
+            heapq.heapify(heap)
+            arr = [-x for x in heap]
+        else:
+            raise ValueError("heap_type має бути 'min' або 'max'.")
+
+    root = array_to_tree(arr, highlight_violations=highlight_violations, heap_type=heap_type)
+    if root is None:
+        print("Порожня купа.")
+        return
+    draw_tree(root)
+
+
+# === 4) Приклади використання =================================================
+if __name__ == "__main__":
+    data = [7, 12, 3, 25, 8, 15, 9, 30, 40]
+
+    print("Мін-куча (heapify):")
+    visualize_heap(data, heap_type='min', do_heapify=True)
+
+    print("Макс-куча (heapify):")
+    visualize_heap(data, heap_type='max', do_heapify=True)
+
+    print("Візуалізація довільного масиву з підсвіченням порушень (якщо є):")
+    not_heap = [10, 4, 15, 2, 8, 1]  # це не мін-куча
+    visualize_heap(not_heap, heap_type='min', do_heapify=False, highlight_violations=True)
