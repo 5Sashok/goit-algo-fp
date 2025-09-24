@@ -1,0 +1,98 @@
+import heapq
+from collections import defaultdict
+
+class Graph:
+    def __init__(self, directed=False):
+        self.adj = defaultdict(list)   # вершина -> список (сусід, вага)
+        self.directed = directed
+
+    def add_edge(self, u, v, w):
+        if w < 0:
+            raise ValueError("Алгоритм Дейкстри вимагає невід’ємні ваги.")
+        self.adj[u].append((v, w))
+        if not self.directed:
+            self.adj[v].append((u, w))
+
+    def vertices(self):
+        vs = set(self.adj.keys())
+        for u in self.adj:
+            for v, _ in self.adj[u]:
+                vs.add(v)
+        return vs
+
+
+def dijkstra(graph: Graph, source):
+    """
+    Повертає:
+      dist: словник вершина -> найкоротша відстань від source
+      parent: словник вершина -> попередник у найкоротшому шляху
+    Складність: O((V + E) log V) завдяки бінарній купі.
+    """
+    dist = {v: float('inf') for v in graph.vertices()}
+    parent = {v: None for v in graph.vertices()}
+    dist[source] = 0
+
+    # Бінарна купа з кортежами (відстань, вершина)
+    heap = [(0, source)]
+    visited = set()
+
+    while heap:
+        d, u = heapq.heappop(heap)
+        if u in visited:
+            continue
+        visited.add(u)
+
+        # Якщо дістали вершину з більшим d, ніж відомо, пропускаємо
+        if d > dist[u]:
+            continue
+
+        for v, w in graph.adj[u]:
+            nd = d + w
+            if nd < dist[v]:
+                dist[v] = nd
+                parent[v] = u
+                heapq.heappush(heap, (nd, v))
+
+    return dist, parent
+
+
+def reconstruct_path(parent, target):
+    """Відновлення шляху з parent-таблиці."""
+    path = []
+    cur = target
+    while cur is not None:
+        path.append(cur)
+        cur = parent[cur]
+    path.reverse()
+    return path
+
+
+# ---------------- Приклад використання ----------------
+if __name__ == "__main__":
+    g = Graph(directed=False)  # змініть на True для орієнтованого графа
+
+    # Створимо зважений граф
+    edges = [
+        ("A", "B", 4),
+        ("A", "C", 2),
+        ("B", "C", 5),
+        ("B", "D", 10),
+        ("C", "E", 3),
+        ("E", "D", 4),
+        ("D", "F", 11),
+        ("E", "F", 2),
+    ]
+    for u, v, w in edges:
+        g.add_edge(u, v, w)
+
+    source = "A"
+    dist, parent = dijkstra(g, source)
+
+    print(f"Найкоротші відстані від {source}:")
+    for v in sorted(dist):
+        print(f"  {v}: {dist[v]}")
+
+    print("\nШляхи від джерела:")
+    for v in sorted(dist):
+        path = reconstruct_path(parent, v)
+        print(f"  {source} -> {v}: {' -> '.join(path)}")
