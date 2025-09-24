@@ -1,0 +1,106 @@
+# Pythagoras Tree (математичний, квадратний варіант)
+# Автор: для рівня рекурсії введіть ціле число (напр., 10–13)
+
+import math
+import matplotlib.pyplot as plt
+
+def rot(vec, ang_deg):
+    ang = math.radians(ang_deg)
+    x, y = vec
+    ca, sa = math.cos(ang), math.sin(ang)
+    return (x*ca - y*sa, x*sa + y*ca)
+
+def add(p, v):
+    return (p[0]+v[0], p[1]+v[1])
+
+def draw_square(ax, p, u, v, **kw):
+    """Квадрат заданий нижньою стороною (p->p+u) та висотою v."""
+    p0 = p
+    p1 = add(p0, u)
+    p2 = add(p1, v)
+    p3 = add(p0, v)
+    xs = [p0[0], p1[0], p2[0], p3[0], p0[0]]
+    ys = [p0[1], p1[1], p2[1], p3[1], p0[1]]
+    ax.plot(xs, ys, **kw)
+
+def pythagoras(ax, p, u, v, depth, alpha_deg=45, **kw):
+    """Рекурсивне дерево Піфагора.
+    p – нижній лівий кут квадрата;
+    u – вектор уздовж нижнього ребра (довжина = сторона);
+    v – вектор висоти (перпендикуляр до u, та сама довжина);
+    depth – рівень рекурсії;
+    alpha_deg – кут розщеплення (класично 45°).
+    """
+    draw_square(ax, p, u, v, **kw)
+    if depth == 0:
+        return
+
+    # верхня сторона квадрата
+    top_left  = add(p, v)
+    top_right = add(add(p, u), v)
+
+    s = math.hypot(u[0], u[1])  # довжина сторони
+    alpha = math.radians(alpha_deg)
+
+    # Довжини нижніх сторін дочірніх квадратів
+    sL = s * math.cos(alpha)
+    sR = s * math.sin(alpha)
+
+    # Осьовий напрям уздовж верхнього ребра та його перпендикуляр угору
+    u_top = u
+    v_top = v
+
+    # Лівий дочірній квадрат
+    uL_dir = rot((sL, 0), (90 - alpha_deg))              # напрямок нижньої сторони в локальних осях
+    uL = rot((sL, 0), 0)                                  # довжина sL уздовж top, старт у top_left
+    # але нам зручніше задати через напрям вздовж top:
+    uL = (u_top[0] * (sL / s), u_top[1] * (sL / s))
+    vL = rot(uL, 90)                                      # висота квадрата вліво-вгору
+    pL = top_left                                         # нижній лівий кут лівого квадрата
+
+    # Повернути лівий квадрат на (90 - alpha) відносно топа:
+    # Це робимо, повернувши базові вектори top-напряму.
+    uL = rot(uL, 90 - alpha_deg)
+    vL = rot(vL, 90 - alpha_deg)
+
+    # Правий дочірній квадрат
+    uR = (u_top[0] * (sR / s), u_top[1] * (sR / s))
+    vR = rot(uR, 90)
+    pR = add(top_right, (-uR[0], -uR[1]))                 # нижній лівий кут правого квадрата
+    uR = rot(uR, -(90 - alpha_deg))
+    vR = rot(vR, -(90 - alpha_deg))
+
+    # Рекурсія
+    pythagoras(ax, pL, uL, vL, depth-1, alpha_deg, **kw)
+    pythagoras(ax, pR, uR, vR, depth-1, alpha_deg, **kw)
+
+def main():
+    try:
+        depth = int(input("Введіть рівень рекурсії (рекомендовано 9–12): ").strip())
+    except Exception:
+        depth = 10
+        print("Невірне значення, використовую depth=10")
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    # Початковий квадрат (база дерева)
+    side = 1.0
+    # розташуємо так, щоб дерево росло вгору з центру
+    p0 = (-side/2, 0.0)               # нижній лівий кут
+    u0 = (side, 0.0)                  # уздовж низу вправо
+    v0 = (0.0, side)                  # вгору
+
+    # малюємо
+    color = "#8A2D2B"                 # приємний червоно-коричневий
+    pythagoras(ax, p0, u0, v0, depth, alpha_deg=45, color=color, linewidth=1)
+
+    # Автопідбір меж
+    ax.relim()
+    ax.autoscale_view()
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    main()
